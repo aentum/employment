@@ -1,6 +1,6 @@
 import re
 import os
-import unicodecsv as csv
+import csv
 import pandas as pd
 import itertools
 import numpy as np
@@ -10,7 +10,7 @@ import json
 from employee import Employee
 
 
-def json_parser(processor, empl_by_year, empl_path, tickers, infer_tickers, primary_skills):
+def json_parser(processor, empl_by_year, empl_path, tickers, infer_tickers, primary_skills, ai_prop):
     #block for annual counts. 
     exclusive = False
     if primary_skills[0][0] == '-':
@@ -20,7 +20,13 @@ def json_parser(processor, empl_by_year, empl_path, tickers, infer_tickers, prim
             all_skills_but.append(re.sub(r'[-()]','', skill))
         all_skills_but.append('-1')
 
-    def annualCounter(ex):
+    aiskills = []
+    with open('../data/ai_skills.tsv') as fd:
+        rd = csv.reader(fd, delimiter= '\t')
+        for row in rd:
+            aiskills.append(row[0])
+
+    def annualCounter(ex, entry):
         ''' Updates empl_by_year dictionary '''
         if ex['identifier'] in tickers and ex['start'] != "None" and (ex['end'] != "None" or ex['current_job'] == "True"):
             empl_by_year[ex['identifier']] += Counter(
@@ -29,7 +35,30 @@ def json_parser(processor, empl_by_year, empl_path, tickers, infer_tickers, prim
                     pd.to_datetime(ex['end']).year if ex['end']!="None" else 2019
                 )
             )
-
+            for skill in aiskills:
+                is_ai = False
+                if skill in entry['primary_skill'] or \
+                skill in entry['raw_skills'] or \
+                ('bio' in entry and skill in str(entry['bio'])) or \
+                skill in ex['role']['valid_roles'] or \
+                skill in ex['role']['positions'] or \
+                ('description' in ex and skill in str(ex['description'])):
+                    is_ai = True
+                    break
+            if is_ai:
+                ai_prop[1][ex['identifier']] += Counter(
+                    range(
+                        pd.to_datetime(ex['start']).year,
+                        pd.to_datetime(ex['end']).year if ex['end']!="None" else 2019
+                    )
+                )
+            else:
+                ai_prop[0][ex['identifier']] += Counter(
+                    range(
+                        pd.to_datetime(ex['start']).year,
+                        pd.to_datetime(ex['end']).year if ex['end']!="None" else 2019
+                    )
+                    )
 
     def load_and_process(line):
         entry = json.loads(line)
@@ -88,7 +117,7 @@ def json_parser(processor, empl_by_year, empl_path, tickers, infer_tickers, prim
                         continue
                     else:
                         processor.json_read(entry['user_id'], ex, profile, profile_keys)
-                        annualCounter(ex)
+                        annualCounter(ex, entry)
                 elif ex['identifier'] == 'TIME_OFF' : #ex[role] == None 
         
                         processor.json_read(entry['user_id'], ex, profile, profile_keys)                       
