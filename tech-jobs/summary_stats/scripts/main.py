@@ -6,6 +6,7 @@ import pandas as pd
 import itertools
 import numpy as np
 from collections import Counter
+import argparse
 
 from entryProcessor import EntryProcessor
 from employee import Employee
@@ -13,26 +14,46 @@ from records import Records
 from csv_parser  import csv_parser
 from json_parser import json_parser
 
-try:
-    assert len(sys.argv) == 5
-except AssertionError:
-    print('''Correct usage: 
-    python main.py (directory containing data) (target) (primary skills) (infer tickers) 
-    target: name of file to be written under outputs 
-    primary_skills: filter by primary skill, with options "all" for every skills, -(skill) to exclude 
-    infer_tickers: Either True or comma separated list of normalizaed tickers. 
-                   If True, the files under directory are expected to be named as
-                   the corresponding tickers of interest.
+#try:
+#    assert len(sys.argv) == 5
+#except AssertionError:
+#    print('''Correct usage: 
+#    python main.py (directory containing data) (target) (primary skills) (infer tickers) 
+#    target: name of file to be written under outputs 
+#    primary_skills: filter by primary skill, with options "all" for every skills, -(skill) to exclude 
+#    infer_tickers: Either True or list of normalizaed tickers. 
+#                   If True, the files under directory are expected to be named as
+#                   the corresponding tickers of interest.
+#                   '''
+#    )
+#    sys.exit(1)
+
+parser = argparse.ArgumentParser(description='Process employment data.')
+parser.add_argument('data_source', metavar='SOURCE', type=str,
+                    help='Directory containing data')
+parser.add_argument('target', metavar='TARGET', type=str,
+                    help='name of the csv file to be written under /outputs')
+parser.add_argument('--primary_skills', '-ps', required = True, 
+                    metavar='PRIMARY SKILLS', type=str,
+                    nargs = '+', help='List of primary skills to filter by.')
+parser.add_argument('--tickers', '-t', nargs = '*', default= True,
+                    help='''
+                    Option to provide a list of normalized tickers. 
+                    By default, the files under directory are expected 
+                    to be named as the corresponding tickers of interest.
                    '''
-    )
-    sys.exit(1)
+                   )
+
+args = parser.parse_args()
+print(args)
+sys.exit(1)
     
-empl_path = sys.argv[1] #directory of files to process
-target = sys.argv[2] #csv file name to write
-primary_skills = sys.argv[3].split(',') # 
-infer_tickers = sys.argv[4]
-if infer_tickers != 'True':
-    tickers = infer_tickers.split(',')
+empl_path = args.data_source #directory of files to process
+target = args.target #csv file name to write
+primary_skills = args.primary_skills# 
+infer_tickers = args.tickers #boolean 
+if infer_tickers != True:
+    tickers = infer_tickers
     infer_tickers = False
 else:
     try:
@@ -58,17 +79,17 @@ for ticker in tickers:
     non_ai[ticker] = Counter([])
 ai_proportions = [non_ai, ai_workers]
 
-if os.path.isdir(empl_path):
+if os.path.isdir(empl_path): # Run on a directory of files
     if os.listdir(empl_path)[0].endswith('.csv'):
         csv_parser(processor, empl_by_year, empl_path, tickers, infer_tickers, primary_skills)
     else:
         json_parser(processor, empl_by_year, empl_path, tickers, infer_tickers, primary_skills, ai_proportions)
 else:
-    if empl_path.endswith('.csv'):
+    if empl_path.endswith('.csv'): #Run on a single file
         print('Individual file processing supported only on json')
         sys.exit(1)
     else:
-        json_parser(processor, empl_by_year, empl_path, tickers, infer_tickers, primary_skills)
+        json_parser(processor, empl_by_year, empl_path, tickers, infer_tickers, primary_skills, ai_proportions)
 
 #block for annual counts. 
 empl_changes_lst = rec.output()

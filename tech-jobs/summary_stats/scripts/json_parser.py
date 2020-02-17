@@ -15,11 +15,9 @@ def json_parser(processor, empl_by_year, empl_path, tickers, infer_tickers, prim
     exclusive = False
     if primary_skills[0][0] == '-':
         exclusive = True
-        all_skills_but = []
-        for skill in primary_skills:
-            all_skills_but.append(re.sub(r'[-()]','', skill))
+        all_skills_but = [re.sub(re.sub(r'[-()]','', skill)) 
+                            for skill in primary_skills]
         all_skills_but.append('-1')
-
     aiskills = []
     with open('../data/ai_skills.tsv') as fd:
         rd = csv.reader(fd, delimiter= '\t')
@@ -35,6 +33,9 @@ def json_parser(processor, empl_by_year, empl_path, tickers, infer_tickers, prim
                     pd.to_datetime(ex['end']).year if ex['end']!="None" else 2019
                 )
             )
+            #TODO: Each year needs a list of relevant skillsets
+            # Need to extract normalized list of skills from each profile
+            # Later will list/graph the top 5~10 skills each year.
             for skill in aiskills:
                 is_ai = False
                 if skill in entry['primary_skill'] or \
