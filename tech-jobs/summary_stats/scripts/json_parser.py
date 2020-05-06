@@ -6,27 +6,26 @@ import itertools
 import numpy as np
 from collections import Counter
 import json
+import sys
 
 from employee import Employee
 
+negcounts = False
+nl = 0
+num_amazon = 0
+num_fail = 0
+garbage = 0
 
-def json_parser(processor, empl_by_year, empl_path, tickers, infer_tickers, primary_skills, ai_prop):
+def json_parser(processor, empl_by_year, empl_path, infer_tickers, primary_skills, ai_prop):
     #block for annual counts. 
-    exclusive = False
-    if primary_skills[0][0] == '-':
-        exclusive = True
-        all_skills_but = [re.sub(re.sub(r'[-()]','', skill)) 
-                            for skill in primary_skills]
-        all_skills_but.append('-1')
-    aiskills = []
-    with open('../data/ai_skills.tsv') as fd:
-        rd = csv.reader(fd, delimiter= '\t')
-        for row in rd:
-            aiskills.append(row[0])
-
     def annualCounter(ex, entry):
         ''' Updates empl_by_year dictionary '''
-        if ex['identifier'] in tickers and ex['start'] != "None" and (ex['end'] != "None" or ex['current_job'] == "True"):
+        if ex['identifier'] not in tickers:
+            xxx = 0
+        else:
+            global negcounts
+            negcounts = True
+        if ex['identifier'] in tickers and ex['start'] != "None" and (ex['end'] != "None" or ex['current_job']):
             empl_by_year[ex['identifier']] += Counter(
                 range(
                     pd.to_datetime(ex['start']).year,
@@ -81,7 +80,7 @@ def json_parser(processor, empl_by_year, empl_path, tickers, infer_tickers, prim
             profile['gender'] = 0
 
         profile['degrees'] = max(profile['degrees'])
-        profile['primary_skill'] = profile['primary_skill']['skill']
+        profile['primary_skill'] = str(profile['primary_skill']['skill'])
         
         #add profile features like this
         #remember to update varlist of main.py
@@ -117,11 +116,23 @@ def json_parser(processor, empl_by_year, empl_path, tickers, infer_tickers, prim
                     if is_irregular_worker:
                         continue
                     else:
-                        processor.json_read(entry['user_id'], ex, profile, profile_keys)
+                        processor.json_read(entry['user_id'], ex, profile)
                         annualCounter(ex, entry)
                 elif ex['identifier'] == 'TIME_OFF' : #ex[role] == None 
-        
-                        processor.json_read(entry['user_id'], ex, profile, profile_keys)                       
+                        processor.json_read(entry['user_id'], ex, profile)                       
+
+    tickers = processor.tickers
+    exclusive = False
+    if primary_skills[0][0] == '/':
+        exclusive = True
+        all_skills_but = [re.sub(re.sub(r'[/()]','', skill)) 
+                            for skill in primary_skills]
+        all_skills_but.append('-1')
+    aiskills = []
+    with open('../data/ai_skills.tsv') as fd:
+        rd = csv.reader(fd, delimiter= '\t')
+        for row in rd:
+            aiskills.append(row[0])
 
     #calling load_and_process on line
     if os.path.isdir(empl_path):
@@ -133,8 +144,28 @@ def json_parser(processor, empl_by_year, empl_path, tickers, infer_tickers, prim
                 processor.change_ticker([ticker])
             with open(empl_file) as f:
                 for line in f:
+                    global negcounts 
+                    negcounts = False
+                    global nl 
+                    nl +=1
                     load_and_process(line)
+                    if negcounts:
+                        global num_amazon
+                        num_amazon += 1
+                    else:
+                        entry = json.loads(line)
+                        if entry['primary_skill']['skill'] != -1:
+                            global num_fail 
+                            num_fail += 1
+                        elif entry['primary_skill']['skill'] == -1:
+                            global garbage
+                            garbage += 1
     elif os.path.isfile(empl_path):
         with open(empl_path) as f:
             for line in f:
                 load_and_process(line)
+    print('employee count:')
+    print(num_amazon)
+    print(num_fail)
+    print(garbage)
+    print(nl)

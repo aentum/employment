@@ -6,7 +6,8 @@ import itertools
 import numpy as np
 from collections import Counter
 
-def csv_parser(processor, empl_by_year, empl_path, tickers, infer_tickers, primary_skills):
+def csv_parser(processor, empl_by_year, empl_path, infer_tickers, primary_skills):
+    tickers = processor.tickers
     #block for annual counts. 
     exclusive = False
     if primary_skills[0][0] == '-':

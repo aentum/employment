@@ -48,14 +48,14 @@ class EntryProcessor:
                                 entry[21], entry[15], entry[17], entry[18])
                 self.records.enter_record(self.employee)
 
-    def json_read(self, usrid, experience, profile, keys):
+    def json_read(self, usrid, experience, profile):
         if usrid != self.current_id:
             if self.employee.f_current == 'False':
                 self.records.leave_record(self.employee, 'unknown') #data type of industry?
             self.current_id = usrid
             second_skill_level = profile['secondary_skill']['confidence']
             profile['secondary_skill'] = profile['secondary_skill']['skill']
-            p = [profile[k] for k in keys]
+            p = [profile[k] for k in profile.keys()]
             self.employee = Employee(p, second_skill_level)
         
         # Then deal with the current entry. 

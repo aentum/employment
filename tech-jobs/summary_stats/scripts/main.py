@@ -14,28 +14,19 @@ from records import Records
 from csv_parser  import csv_parser
 from json_parser import json_parser
 
-#try:
-#    assert len(sys.argv) == 5
-#except AssertionError:
-#    print('''Correct usage: 
-#    python main.py (directory containing data) (target) (primary skills) (infer tickers) 
-#    target: name of file to be written under outputs 
-#    primary_skills: filter by primary skill, with options "all" for every skills, -(skill) to exclude 
-#    infer_tickers: Either True or list of normalizaed tickers. 
-#                   If True, the files under directory are expected to be named as
-#                   the corresponding tickers of interest.
-#                   '''
-#    )
-#    sys.exit(1)
 
 parser = argparse.ArgumentParser(description='Process employment data.')
 parser.add_argument('data_source', metavar='SOURCE', type=str,
                     help='Directory containing data')
 parser.add_argument('target', metavar='TARGET', type=str,
                     help='name of the csv file to be written under /outputs')
-parser.add_argument('--primary_skills', '-ps', required = True, 
+parser.add_argument('--primary_skills', '-ps', default = ['all'],
                     metavar='PRIMARY SKILLS', type=str,
-                    nargs = '+', help='List of primary skills to filter by.')
+                    nargs = '+', 
+                    help='''List of primary skills of interest.
+                    By default, all skills are included. 
+                    Write '/(skill)' to filter out specific skill(s).
+                    ''')
 parser.add_argument('--tickers', '-t', nargs = '*', default= True,
                     help='''
                     Option to provide a list of normalized tickers. 
@@ -45,12 +36,10 @@ parser.add_argument('--tickers', '-t', nargs = '*', default= True,
                    )
 
 args = parser.parse_args()
-print(args)
-sys.exit(1)
-    
+
 empl_path = args.data_source #directory of files to process
 target = args.target #csv file name to write
-primary_skills = args.primary_skills# 
+primary_skills = args.primary_skills
 infer_tickers = args.tickers #boolean 
 if infer_tickers != True:
     tickers = infer_tickers
@@ -81,17 +70,17 @@ ai_proportions = [non_ai, ai_workers]
 
 if os.path.isdir(empl_path): # Run on a directory of files
     if os.listdir(empl_path)[0].endswith('.csv'):
-        csv_parser(processor, empl_by_year, empl_path, tickers, infer_tickers, primary_skills)
+        csv_parser(processor, empl_by_year, empl_path, infer_tickers, primary_skills)
     else:
-        json_parser(processor, empl_by_year, empl_path, tickers, infer_tickers, primary_skills, ai_proportions)
+        json_parser(processor, empl_by_year, empl_path, infer_tickers, primary_skills, ai_proportions)
 else:
     if empl_path.endswith('.csv'): #Run on a single file
         print('Individual file processing supported only on json')
         sys.exit(1)
     else:
-        json_parser(processor, empl_by_year, empl_path, tickers, infer_tickers, primary_skills, ai_proportions)
+        json_parser(processor, empl_by_year, empl_path, infer_tickers, primary_skills, ai_proportions)
 
-#block for annual counts. 
+#export employment info about individuals. 
 empl_changes_lst = rec.output()
 varlist = [
     "type","ticker","yrmth", "birth","gender","skill1","skill2","cntry","edu","f_elite",
@@ -101,6 +90,7 @@ varlist = [
 empl_changes_df = pd.DataFrame(data=empl_changes_lst,columns=varlist)
 empl_changes_df.to_csv(r'../outputs/' + target + '.csv', index= False)
 
+#export employment counts with ai proportions
 empl_by_year = pd.DataFrame(empl_by_year).fillna(0).unstack().reset_index()
 non_ai = pd.DataFrame(non_ai).fillna(0).unstack().reset_index()
 ai_workers = pd.DataFrame(ai_workers).fillna(0).unstack().reset_index()
