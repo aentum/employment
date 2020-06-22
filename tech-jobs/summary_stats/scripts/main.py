@@ -62,23 +62,27 @@ processor = EntryProcessor(employee, rec, tickers)
 empl_by_year = {}
 ai_workers = {}
 non_ai = {}
+yearly_skillsets = {}
 for ticker in tickers:
     empl_by_year[ticker] = Counter([])
     ai_workers[ticker] = Counter([])
     non_ai[ticker] = Counter([])
+    yearly_skillsets[ticker] = {}
 ai_proportions = [non_ai, ai_workers]
 
 if os.path.isdir(empl_path): # Run on a directory of files
     if os.listdir(empl_path)[0].endswith('.csv'):
         csv_parser(processor, empl_by_year, empl_path, infer_tickers, primary_skills)
     else:
-        json_parser(processor, empl_by_year, empl_path, infer_tickers, primary_skills, ai_proportions)
+        json_parser(processor, empl_by_year, empl_path, infer_tickers, 
+        primary_skills, ai_proportions, yearly_skillsets)
 else:
     if empl_path.endswith('.csv'): #Run on a single file
         print('Individual file processing supported only on json')
         sys.exit(1)
     else:
-        json_parser(processor, empl_by_year, empl_path, infer_tickers, primary_skills, ai_proportions)
+        json_parser(processor, empl_by_year, empl_path, infer_tickers, 
+        primary_skills, ai_proportions, yearly_skillsets)
 
 #export employment info about individuals. 
 empl_changes_lst = rec.output()
@@ -98,6 +102,11 @@ empl_by_year.columns = ["ticker", "year", "employment"]
 non_ai.columns = ["ticker", "year", "non_ai"]
 ai_workers.columns = ["ticker", "year", "ai"]
 
-empl_by_year = pd.merge(empl_by_year, non_ai, on = ['ticker', 'year'])
-empl_by_year = pd.merge(empl_by_year, ai_workers, on = ['ticker', 'year'])
-empl_by_year.to_csv(r'../outputs/' + target + '_by_year.csv', index= False)
+empl_by_year = pd.merge(empl_by_year, non_ai, on = ['ticker', 'year'], how = 'outer')
+empl_by_year = pd.merge(empl_by_year, ai_workers, on = ['ticker', 'year'], how = 'outer').fillna(0)
+
+#join yearly skillset composition
+yearly_skillsets = pd.DataFrame(yearly_skillsets).unstack().dropna(0).reset_index()
+yearly_skillsets.columns = ["ticker", "year", "skill_count"]
+empl_by_year = pd.merge(empl_by_year, yearly_skillsets, on = ['ticker', 'year'])
+empl_by_year.to_json(r'../outputs/' + target + '_by_year.json')

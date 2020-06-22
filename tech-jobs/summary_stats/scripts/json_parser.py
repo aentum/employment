@@ -10,31 +10,19 @@ import sys
 
 from employee import Employee
 
-negcounts = False
-nl = 0
-num_amazon = 0
-num_fail = 0
-garbage = 0
-
-def json_parser(processor, empl_by_year, empl_path, infer_tickers, primary_skills, ai_prop):
+def json_parser(processor, empl_by_year, empl_path, \
+    infer_tickers, primary_skills, ai_prop, yearly_skillsets):
     #block for annual counts. 
     def annualCounter(ex, entry):
         ''' Updates empl_by_year dictionary '''
-        if ex['identifier'] not in tickers:
-            xxx = 0
-        else:
-            global negcounts
-            negcounts = True
-        if ex['identifier'] in tickers and ex['start'] != "None" and (ex['end'] != "None" or ex['current_job']):
+        if ex['identifier'] in tickers and ex['start'] != "None" \
+            and (ex['end'] != "None" or ex['current_job']):
             empl_by_year[ex['identifier']] += Counter(
                 range(
                     pd.to_datetime(ex['start']).year,
                     pd.to_datetime(ex['end']).year if ex['end']!="None" else 2019
                 )
             )
-            #TODO: Each year needs a list of relevant skillsets
-            # Need to extract normalized list of skills from each profile
-            # Later will list/graph the top 5~10 skills each year.
             for skill in aiskills:
                 is_ai = False
                 if skill in entry['primary_skill'] or \
@@ -59,6 +47,22 @@ def json_parser(processor, empl_by_year, empl_path, infer_tickers, primary_skill
                         pd.to_datetime(ex['end']).year if ex['end']!="None" else 2019
                     )
                     )
+
+    # Collect a list of relevant skillsets for each year
+    # TODO: normalize the list of skills? 
+    # TODO: extract skills from entry['bio'] if there are any
+    # Later will list/graph the top 5~10 skills each year.
+    def top_skills(ex, entry):
+        if ex['identifier'] in tickers and ex['start'] != "None" \
+                and (ex['end'] != "None" or ex['current_job']):
+            for year in range(
+                    pd.to_datetime(ex['start']).year,
+                    pd.to_datetime(ex['end']).year if ex['end']!="None" else 2019
+                ):
+                if year in yearly_skillsets[ex['identifier']]:
+                    yearly_skillsets[ex['identifier']][year] += Counter(entry['raw_skills'])
+                else:
+                    yearly_skillsets[ex['identifier']][year] = Counter(entry['raw_skills'])
 
     def load_and_process(line):
         entry = json.loads(line)
@@ -110,14 +114,16 @@ def json_parser(processor, empl_by_year, empl_path, infer_tickers, primary_skill
             else: #employment data
                 #filter irregular workers
                 if ex['role'] != None:
-                    irregular_worker_filter = [re.search(r"(?i)\W{}\W".format(x)," "+ex['role']['original']+" ") 
-                                            is None for x in ["intern","internship","trainee","student"]]
+                    irregular_worker_filter = [re.search(r"(?i)\W{}\W".format(x),
+                                            " "+ex['role']['original']+" ") is None 
+                                            for x in ["intern","internship","trainee","student"]]
                     is_irregular_worker = (sum(irregular_worker_filter) !=4)
                     if is_irregular_worker:
                         continue
                     else:
                         processor.json_read(entry['user_id'], ex, profile)
                         annualCounter(ex, entry)
+                        top_skills(ex, entry)
                 elif ex['identifier'] == 'TIME_OFF' : #ex[role] == None 
                         processor.json_read(entry['user_id'], ex, profile)                       
 
@@ -144,28 +150,8 @@ def json_parser(processor, empl_by_year, empl_path, infer_tickers, primary_skill
                 processor.change_ticker([ticker])
             with open(empl_file) as f:
                 for line in f:
-                    global negcounts 
-                    negcounts = False
-                    global nl 
-                    nl +=1
                     load_and_process(line)
-                    if negcounts:
-                        global num_amazon
-                        num_amazon += 1
-                    else:
-                        entry = json.loads(line)
-                        if entry['primary_skill']['skill'] != -1:
-                            global num_fail 
-                            num_fail += 1
-                        elif entry['primary_skill']['skill'] == -1:
-                            global garbage
-                            garbage += 1
     elif os.path.isfile(empl_path):
         with open(empl_path) as f:
             for line in f:
                 load_and_process(line)
-    print('employee count:')
-    print(num_amazon)
-    print(num_fail)
-    print(garbage)
-    print(nl)
