@@ -11,7 +11,7 @@ import sys
 from employee import Employee
 
 def json_parser(processor, empl_by_year, empl_path, \
-    infer_tickers, primary_skills, ai_prop, yearly_skillsets):
+    infer_tickers, primary_skills, ai_prop, yearly_skillsets, wanted):
     #block for annual counts. 
     def annualCounter(ex, entry):
         ''' Updates empl_by_year dictionary '''
@@ -121,9 +121,11 @@ def json_parser(processor, empl_by_year, empl_path, \
                     if is_irregular_worker:
                         continue
                     else:
-                        processor.json_read(entry['user_id'], ex, profile)
-                        annualCounter(ex, entry)
-                        top_skills(ex, entry)
+                        if wanted != 'props_and_comp':
+                            processor.json_read(entry['user_id'], ex, profile)
+                        if wanted != 'employment':
+                            annualCounter(ex, entry)
+                            top_skills(ex, entry)
                 elif ex['identifier'] == 'TIME_OFF' : #ex[role] == None 
                         processor.json_read(entry['user_id'], ex, profile)                       
 
@@ -134,11 +136,13 @@ def json_parser(processor, empl_by_year, empl_path, \
         all_skills_but = [re.sub(re.sub(r'[/()]','', skill)) 
                             for skill in primary_skills]
         all_skills_but.append('-1')
+
     aiskills = []
-    with open('../data/ai_skills.tsv') as fd:
-        rd = csv.reader(fd, delimiter= '\t')
-        for row in rd:
-            aiskills.append(row[0])
+    if wanted != 'employment':
+        with open('../data/ai_skills.tsv') as fd:
+            rd = csv.reader(fd, delimiter= '\t')
+            for row in rd:
+                aiskills.append(row[0])
 
     #calling load_and_process on line
     if os.path.isdir(empl_path):

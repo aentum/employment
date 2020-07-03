@@ -34,13 +34,22 @@ parser.add_argument('--tickers', '-t', nargs = '*', default= True,
                     to be named as the corresponding tickers of interest.
                    '''
                    )
+parser.add_argument('extract', choices=['employment', 'props_and_comp', 'all'],
+                    default='all',
+                    help = '''
+                    employment: only return a csv file describing employment of individuals
+                    props_and_comp: only return a json file describing ai worker proportion
+                                    and skillset composition aggregated by year
+                    '''
+                    )
 
 args = parser.parse_args()
 
 empl_path = args.data_source #directory of files to process
 target = args.target #csv file name to write
 primary_skills = args.primary_skills
-infer_tickers = args.tickers #boolean 
+to_return = args.extract 
+infer_tickers = args.tickers #boolean
 if infer_tickers != True:
     tickers = infer_tickers
     infer_tickers = False
@@ -72,17 +81,22 @@ ai_proportions = [non_ai, ai_workers]
 
 if os.path.isdir(empl_path): # Run on a directory of files
     if os.listdir(empl_path)[0].endswith('.csv'):
+        if to_return == 'props_and_comp':
+            print('ai_proportions not supported on csv')
+            sys.exit(1)
+        elif to_return == 'all':
+            print('Warning: ai_proportions not supported on csv')
         csv_parser(processor, empl_by_year, empl_path, infer_tickers, primary_skills)
     else:
         json_parser(processor, empl_by_year, empl_path, infer_tickers, 
-        primary_skills, ai_proportions, yearly_skillsets)
+        primary_skills, ai_proportions, yearly_skillsets, to_return)
 else:
     if empl_path.endswith('.csv'): #Run on a single file
         print('Individual file processing supported only on json')
         sys.exit(1)
     else:
         json_parser(processor, empl_by_year, empl_path, infer_tickers, 
-        primary_skills, ai_proportions, yearly_skillsets)
+        primary_skills, ai_proportions, yearly_skillsets, to_return)
 
 #export employment info about individuals. 
 empl_changes_lst = rec.output()
@@ -91,22 +105,24 @@ varlist = [
     "edu_faculty","raw_skills", "job_role","depmt","ind_next","tenure","nprom"
 ]
 
-empl_changes_df = pd.DataFrame(data=empl_changes_lst,columns=varlist)
-empl_changes_df.to_csv(r'../outputs/' + target + '.csv', index= False)
+if to_return != 'props_and_comp':
+    empl_changes_df = pd.DataFrame(data=empl_changes_lst,columns=varlist)
+    empl_changes_df.to_csv(r'../outputs/' + target + '.csv', index= False)
 
-#export employment counts with ai proportions
-empl_by_year = pd.DataFrame(empl_by_year).fillna(0).unstack().reset_index()
-non_ai = pd.DataFrame(non_ai).fillna(0).unstack().reset_index()
-ai_workers = pd.DataFrame(ai_workers).fillna(0).unstack().reset_index()
-empl_by_year.columns = ["ticker", "year", "employment"]
-non_ai.columns = ["ticker", "year", "non_ai"]
-ai_workers.columns = ["ticker", "year", "ai"]
+if to_return != 'employment':
+    #export employment counts with ai proportions
+    empl_by_year = pd.DataFrame(empl_by_year).fillna(0).unstack().reset_index()
+    non_ai = pd.DataFrame(non_ai).fillna(0).unstack().reset_index()
+    ai_workers = pd.DataFrame(ai_workers).fillna(0).unstack().reset_index()
+    empl_by_year.columns = ["ticker", "year", "employment"]
+    non_ai.columns = ["ticker", "year", "non_ai"]
+    ai_workers.columns = ["ticker", "year", "ai"]
 
-empl_by_year = pd.merge(empl_by_year, non_ai, on = ['ticker', 'year'], how = 'outer')
-empl_by_year = pd.merge(empl_by_year, ai_workers, on = ['ticker', 'year'], how = 'outer').fillna(0)
+    empl_by_year = pd.merge(empl_by_year, non_ai, on = ['ticker', 'year'], how = 'outer')
+    empl_by_year = pd.merge(empl_by_year, ai_workers, on = ['ticker', 'year'], how = 'outer').fillna(0)
 
-#join yearly skillset composition
-yearly_skillsets = pd.DataFrame(yearly_skillsets).unstack().dropna(0).reset_index()
-yearly_skillsets.columns = ["ticker", "year", "skill_count"]
-empl_by_year = pd.merge(empl_by_year, yearly_skillsets, on = ['ticker', 'year'])
-empl_by_year.to_json(r'../outputs/' + target + '_by_year.json')
+    #join yearly skillset composition
+    yearly_skillsets = pd.DataFrame(yearly_skillsets).unstack().dropna(0).reset_index()
+    yearly_skillsets.columns = ["ticker", "year", "skill_count"]
+    empl_by_year = pd.merge(empl_by_year, yearly_skillsets, on = ['ticker', 'year'])
+    empl_by_year.to_json(r'../outputs/' + target + '_by_year.json')
